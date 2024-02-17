@@ -1,0 +1,558 @@
+- name: Get the public ip of the OpenStack Server
+  hosts: localhost
+  tasks:
+  - name: Read the openstack_server_pub_ip.txt file
+    shell:
+      cmd: "cat openstack_server_pub_ip.txt"
+    register: public_ip_openstack
+
+  - name: Print the standard output
+    debug:
+      var: public_ip_openstack.stdout
+     
+     
+
+  - name: Print the public ip
+    debug:
+      msg: "Your Openstack Server Public Ip address is {{ public_ip_openstack.stdout  }}"
+    when: not public_ip_openstack.failed
+
+
+  - name: Ping the Server and Check the Connectivity
+    shell:
+      cmd: "ansible all -m ping"
+    register: connection_report
+    until: connection_report.rc == 0
+    retries: 5
+    delay: 5
+
+  - name: Print the Connection Report
+    debug:
+      var: connection_report
+
+  - name: Check if Ansible Can be Root after logging in
+    shell:
+      cmd: "ansible all -m shell -a 'whoami'"
+    register: Logging_Report
+
+  - name: Print the Logging Report
+    debug:
+      var: Logging_Report
+
+- name: Configure Openstack Cloud on CentOS 8 in AWS
+  hosts: all
+  become: true
+
+  tasks:
+  - name: check the installed files
+    yum:
+      list: installed
+    register: installed_packages_report
+    ignore_errors: true
+
+  - name: Print the list of installed packages
+    debug:
+      var: installed_packages_report
+ 
+  - name: Ensure /etc/yum.repos.d/ directory exists
+    ansible.builtin.file:
+      path: /etc/yum.repos.d/
+      state: directory 
+  
+  - name: List all the files in /etc/yum.repos.d
+    command: "ls /etc/yum.repos.d/"
+    register: repo_files
+
+  - debug:
+      var: repo_files.stdout_lines
+
+  
+
+  - name: Comment out mirrorlist in CentOS repository files
+    ansible.builtin.lineinfile:
+      path: "/etc/yum.repos.d/{{ item }}"
+      backup: no
+      regexp: '^mirrorlist'
+      line: '#mirrorlist'
+    when: "'No URLs in mirrorlist' in installed_packages_report.msg"
+    loop: "{{ repo_files.stdout_lines }}"
+    register: comment_out_mirrorlist_result
+
+  - name: Debug result of commenting out mirrorlist
+    debug:
+      var: comment_out_mirrorlist_result.msg
+
+
+  - name: check the installed files 2nd time
+    yum:
+      list: installed
+    register: installed_packages_report_02
+    ignore_errors: true
+
+
+  - name: Print the list of installed packages 2nd time
+    debug:
+      var: installed_packages_report_02
+      
+
+  - name: Replace with active baseurl in CentOS repository files
+    ansible.builtin.replace:
+      path: "/etc/yum.repos.d/{{ item }}"
+      backup: no
+      regexp: '^#baseurl=http://mirror.centos.org'
+      replace: 'baseurl=http://vault.centos.org'
+    when: "'Cannot find a valid baseurl for repo' in installed_packages_report_02.msg"
+    loop: "{{ repo_files.stdout_lines }}"
+    register: replace_baseurl
+
+  - name: Debug Result of Replacing the baseurl
+    debug:
+      var: replace_baseurl
+
+
+
+  - name: check the installed files 3rd time
+    yum:
+      list: installed
+    register: installed_packages_report_03
+    ignore_errors: true
+
+
+ 
+  - name: Print the list of installed packages 3rd time
+    debug:
+      var: installed_packages_report_03.failed
+
+
+  - name: Update all the Packages with debugged repositories to their latest version
+    package:
+      name: "*"
+      state: latest
+      update_cache: yes
+    when: not installed_packages_report_03.failed
+    register: package_update_report
+
+  - name: printing the package update report
+    debug:
+      var: package_update_report
+
+  - name: enable powertools plugin
+    command: "dnf config-manager --enable powertools"
+    register: enable_powertools_report
+
+   
+  - name: print enable_powertools_report
+    debug:
+      var: enable_powertools_report
+
+  - name: List OpenStack packages and store the output in a file
+    shell: "echo $(yum list | grep openstack) > /root/openstack_packages_list.txt"
+    register: openstack_packages_list_result
+
+  - name: debug the result
+    debug:
+      var: openstack_packages_list_result
+
+  - name: Read the content of /root/openstack_packages_list.txt file
+    shell: "cat /root/openstack_packages_list.txt"
+    register: file_content
+
+  - name: searcing if centos-release-openstack-victoria.noarch is there
+    debug:
+      msg: "String found --> centos-release-openstack-victoria.noarch is available"
+    when: "'centos-release-openstack-victoria.noarch' in file_content.stdout"
+
+
+  - name: Install the OpenStack package
+    package:
+      name: "centos-release-openstack-victoria.noarch"
+      state: present
+
+
+  - name: check the installed files 4th time
+    yum:
+      list: installed
+    register: installed_packages_report_04
+    ignore_errors: true
+
+
+
+  - name: Print the list of installed packages 4th time
+    debug:
+      var: installed_packages_report_04
+
+
+  - name: Ensure /etc/yum.repos.d/ directory exists
+    ansible.builtin.file:
+      path: /etc/yum.repos.d/
+      state: directory
+
+  - name: List all the files in /etc/yum.repos.d
+    command: "ls /etc/yum.repos.d/"
+    register: repo_files
+
+  - debug:
+      var: repo_files.stdout_lines
+
+
+
+  - name: Comment out mirrorlist in CentOS repository files
+    ansible.builtin.lineinfile:
+      path: "/etc/yum.repos.d/{{ item }}"
+      backup: no
+      regexp: '^mirrorlist'
+      line: '#mirrorlist'
+    when: "'No URLs in mirrorlist' in installed_packages_report_04.msg"
+    loop: "{{ repo_files.stdout_lines }}"
+    register: comment_out_mirrorlist_result
+
+  - name: Debug result of commenting out mirrorlist
+    debug:
+      var: comment_out_mirrorlist_result.msg
+
+
+
+  - name: check the installed files 5th time
+    yum:
+      list: installed
+    register: installed_packages_report_05
+    ignore_errors: true
+
+
+  - name: Print the list of installed packages 5th time
+    debug:
+      var: installed_packages_report_05
+
+
+  - name: Replace with active baseurl in CentOS repository files
+    ansible.builtin.replace:
+      path: "/etc/yum.repos.d/{{ item }}"
+      backup: no
+      regexp: '^#baseurl=http://mirror.centos.org'
+      replace: 'baseurl=http://vault.centos.org'
+    when: "'Cannot find a valid baseurl for repo' in installed_packages_report_05.msg"
+    loop: "{{ repo_files.stdout_lines }}"
+    register: replace_baseurl
+
+  - name: Debug Result of Replacing the baseurl
+    debug:
+      var: replace_baseurl
+
+  - name: check the installed files 6th time
+    yum:
+      list: installed
+    register: installed_packages_report_06
+    ignore_errors: true
+
+
+  - name: Print the list of installed packages 6th time
+    debug:
+      var: installed_packages_report_06
+
+  - name: Update all the Packages with debugged repositories to their latest version
+    package:
+      name: "*"
+      state: latest
+      update_cache: yes
+    when: not installed_packages_report_06.failed
+    register: package_update_report
+
+  - name: printing the package update report
+    debug:
+      var: package_update_report
+
+  - name: Install openstack-packstack package 
+    dnf:
+      name: "openstack-packstack"
+      state: present
+
+  - name: Set the hostname for my OpenStack server
+    hostname:
+      name: "openstack.sayantan.example.com"
+
+  - name: check if hostname is set
+    command: "hostname" 
+    register: my_hostname
+
+  - name: Print hostname
+    debug:
+      var: my_hostname.stdout
+
+  - name: set my hostname in the Local DNS aka /etc/hosts file
+    template:
+      src: hosts.j2
+      dest: /etc/hosts
+
+
+  - name: Install network-scripts package
+    dnf:
+      name: "network-scripts"
+      state: present
+
+
+  - name: stop and disable firewalld
+    service:
+      name: firewalld
+      enabled: false
+      state: started
+    register: firewalld_report
+    ignore_errors: true
+
+  - name: Print the firewalld state report
+    debug:
+      var: firewalld_report
+
+  - name: Stop and Disable NetworkManager service
+    service:
+      name: NetworkManager
+      state: stopped
+      enabled: false
+
+  - name: Enable network service
+    service:
+      name: network
+      enabled: true
+
+  - name: Start the network service
+    service: 
+      name: network
+      state: started
+    ignore_errors: true
+
+
+
+  - name: Set SELinux to permissive mode
+    ansible.posix.selinux:
+      policy: targeted
+      state: permissive
+      
+  - name: Generate answer-file using packstack
+    shell:
+      cmd: "packstack --gen-answer-file=/root/sayantan.txt"
+
+- name: Edit the answer-file for OpenStack Cloud
+  hosts: "openstack-server"
+  become: true
+  vars:
+   - answer_file: "sayantan.txt"
+     new_default_password: "redhat@123"
+     new_swift_install_value: "n"
+     new_mariadb_install_value: "y"
+     new_glance_install_value: "y"
+     new_cinder_install_value: "y"
+     new_manila_install_value: "n"
+     new_nova_install_value: "y"
+     new_neutron_install_value: "y"
+     new_horizon_install_value: "y"
+     new_aodh_install_value: "n"
+     new_CLI_install_value: "y"
+     new_provision_demo_value: "n"
+
+  
+  tasks:
+  - name: Ensure the answer_file exists
+    stat:
+      path: "/root/{{ answer_file }}" 
+    register: file_status
+    ignore_errors: true
+
+  - name: Print file status
+    debug:
+      var: file_status.stat.exists
+   
+  - name: Check if the file exists
+    debug:
+      msg: "The file '{{ answer_file }}' exists. All good, proceed further."
+    when: file_status.stat.exists
+
+  - name: Handle the case when the file does not exist
+    debug:
+      msg: "The specified file '{{ answer_file }}' does not exist. Please define the correct path."
+    when: not file_status.stat.exists    
+
+
+  - name: Update default password to be used everywhere
+    lineinfile:
+      path: "/root/{{ answer_file }}"
+      regexp: '^CONFIG_DEFAULT_PASSWORD='
+      line: "CONFIG_DEFAULT_PASSWORD={{ new_default_password }}"
+    when: file_status.stat.exists
+
+
+  - name: Remove ^M characters from the file
+    replace:
+      path: "/root/{{ answer_file }}"
+      regexp: '\r'
+      replace: ''
+    when: file_status.stat.exists
+
+
+  - name: Specify installation of OpenStack Object Storage (swift).
+    lineinfile:
+      path: "/root/{{ answer_file }}"
+      regexp: '^CONFIG_SWIFT_INSTALL='
+      line: "CONFIG_SWIFT_INSTALL={{ new_swift_install_value }}"
+    when: file_status.stat.exists
+
+
+  - name: Specify installation of MariaDB
+    lineinfile:
+      path: "/root/{{ answer_file }}"
+      regexp: '^CONFIG_MARIADB_INSTALL='
+      line: "CONFIG_MARIADB_INSTALL={{ new_mariadb_install_value }}"
+    when: file_status.stat.exists
+
+
+  - name: Specify installation of OpenStack Image Service (glance)
+    lineinfile:
+      path: "/root/{{ answer_file }}"
+      regexp: '^CONFIG_GLANCE_INSTALL='
+      line: "CONFIG_GLANCE_INSTALL={{ new_glance_install_value }}"
+    when: file_status.stat.exists
+
+
+  - name: Specify installation of OpenStack Block Storage (cinder)
+    lineinfile:
+      path: "/root/{{ answer_file }}"
+      regexp: '^CONFIG_CINDER_INSTALL='
+      line: "CONFIG_CINDER_INSTALL={{ new_cinder_install_value }}"
+    when: file_status.stat.exists
+
+
+  - name: Specify installation of OpenStack Shared File System (manila)
+    lineinfile:
+      path: "/root/{{ answer_file }}"
+      regexp: '^CONFIG_MANILA_INSTALL='
+      line: "CONFIG_MANILA_INSTALL={{ new_manila_install_value }}"
+    when: file_status.stat.exists
+
+
+  - name: Specify installation of OpenStack Compute (nova)
+    lineinfile:
+      path: "/root/{{ answer_file }}"
+      regexp: '^CONFIG_NOVA_INSTALL='
+      line: "CONFIG_NOVA_INSTALL={{ new_nova_install_value }}"
+    when: file_status.stat.exists
+
+  - name: Specify installation of OpenStack Networking (neutron)
+    lineinfile:
+      path: "/root/{{ answer_file }}"
+      regexp: '^CONFIG_NEUTRON_INSTALL='
+      line: "CONFIG_NEUTRON_INSTALL={{ new_neutron_install_value }}"
+    when: file_status.stat.exists
+
+
+  - name: Specify installation of OpenStack Dashboard (horizon)
+    lineinfile:
+      path: "/root/{{ answer_file }}"
+      regexp: '^CONFIG_HORIZON_INSTALL='
+      line: "CONFIG_HORIZON_INSTALL={{ new_horizon_install_value }}"
+    when: file_status.stat.exists
+
+  - name: Specify installation of OpenStack Telemetry Alarming (Aodh)
+    lineinfile:
+      path: "/root/{{ answer_file }}"
+      regexp: '^CONFIG_AODH_INSTALL='
+      line: "CONFIG_AODH_INSTALL={{ new_aodh_install_value }}"
+    when: file_status.stat.exists
+
+  - name: Specify installation of OpenStack Client packages (command-line tools)
+    lineinfile:
+      path: "/root/{{ answer_file }}"
+      regexp: '^CONFIG_CLIENT_INSTALL='
+      line: "CONFIG_CLIENT_INSTALL={{ new_CLI_install_value }}"
+    when: file_status.stat.exists 
+
+  - name: Specify provisioning for demo usage and testing
+    lineinfile:
+      path: "/root/{{ answer_file }}"
+      regexp: '^CONFIG_PROVISION_DEMO='
+      line: "CONFIG_PROVISION_DEMO={{ new_provision_demo_value }}"
+    when: file_status.stat.exists 
+
+  - name: Ensure the keystonerc_admin exists or not
+    stat:
+      path: "/root/keystonerc_admin"
+    register: keystonerc_admin_file_status
+    ignore_errors: true
+
+  - name: Print file status
+    debug:
+      var: keystonerc_admin_file_status.stat.exists
+
+
+  - name: initiating OpenStack Cloud Configuration using PackStack
+    shell:
+      cmd: "packstack --answer-file='/root/{{ answer_file }}'"
+    when: not keystonerc_admin_file_status.stat.exists
+    register: OpenStacK_Cloud_Setup_Report
+
+
+  - name: Printing the report
+    debug:
+      var: OpenStacK_Cloud_Setup_Report
+
+- name: Read the file again to get the Public Ip of the Openstack Server
+  hosts: localhost
+  tasks:
+  - name: Read the openstack_server_pub_ip.txt file
+    shell:
+      cmd: "cat openstack_server_pub_ip.txt"  
+    register: public_ip_openstack
+
+  - name: Print the standard output
+    debug:
+      var: public_ip_openstack.stdout
+
+- name: TroubleShooting The NO URL found issue
+  hosts: all
+  gather_facts: false
+  tasks:
+
+
+  - name: See the Metadata of the Openstack instance
+    shell:
+      cmd: "curl http://169.254.169.254/latest/meta-data/public-ipv4"
+    register: public_ip_openstack_instance
+
+  - name: print the Public IPv4
+    debug:
+      var: public_ip_openstack_instance
+
+  - name: Check if ServerAlias already exists in Apache configuration file
+    shell: 
+      cmd: 'grep -q "ServerAlias {{ public_ip_openstack_instance.stdout }} " /etc/httpd/conf.d/15-horizon_vhost.conf'
+    register: server_alias_exists
+    ignore_errors: true
+
+  - debug:
+      var: server_alias_exists
+
+  - name: Append ServerAlias to Apache configuration file if it doesn't exist
+    shell: 'sed -i "/ServerAlias localhost/a \\  ServerAlias {{ public_ip_openstack_instance.stdout }}" /etc/httpd/conf.d/15-horizon_vhost.conf'
+    when: server_alias_exists.rc != 0
+    register: state
+
+  - name: debug the state
+    debug: 
+      var: state  
+   
+
+  - name: Restart the httpd service
+    service:
+      name: httpd
+      state: restarted
+
+
+  - name: Read keystonerc_admin file
+    ansible.builtin.shell:
+      cmd: "cat /root/keystonerc_admin"
+    register: keystonerc_admin
+
+  - name: Print the file on the console
+    debug:
+      var: keystonerc_admin.stdout_lines
+
+  - name: Dash Board URL
+    debug:
+      msg: "http://{{ public_ip_openstack_instance.stdout }}/dashboard"    

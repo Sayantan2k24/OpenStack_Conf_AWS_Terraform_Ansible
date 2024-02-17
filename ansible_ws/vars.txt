@@ -1,0 +1,26 @@
+# Define the variables to create the inventory file
+
+host_grpname: "openstack-server"
+remote_user: "centos"
+path_priv_key: "../terraform_aws_ec2/id_rsa"
+
+
+
+# Define the variables to create the answer-file for openstack
+
+answer_file: "sayantan.txt"
+new_default_password: "redhat@123"
+new_swift_install_value: "n"
+new_mariadb_install_value: "y"
+new_glance_install_value: "y"
+new_cinder_install_value: "y"
+new_manila_install_value: "n"
+new_nova_install_value: "y"
+new_neutron_install_value: "y"
+new_horizon_install_value: "y"
+new_aodh_install_value: "n"
+new_CLI_install_value: "y"
+new_provision_demo_value: "n"
+
+
+
